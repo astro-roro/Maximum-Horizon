@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
+    <Version>1.0.0</Version>
+    <Authors>Rohan Hinton</Authors>
+    <Description>NINA plugin for defining custom maximum altitude constraints (upper horizon limits) to prevent imaging obstructed targets</Description>
+    <Copyright>Copyright © 2025</Copyright>
+  </PropertyGroup>
+
+
+  <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NINA.Plugin" Version="3.0.0.9001" />
+    <PackageReference Include="NINA.Core" Version="3.0.0.9001" />
+    <PackageReference Include="NINA.Sequencer" Version="3.0.0.9001" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="NINA.Plugin">
+      <HintPath>$(NuGetPackageRoot)nina.plugin\3.0.0.9001\lib\net8.0-windows7.0\NINA.Plugin.dll</HintPath>
+    </Reference>
+    <Reference Include="NINA.Core">
+      <HintPath>$(NuGetPackageRoot)nina.core\3.0.0.9001\lib\net8.0-windows7.0\NINA.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="NINA.Sequencer">
+      <HintPath>$(NuGetPackageRoot)nina.sequencer\3.0.0.9001\lib\net8.0-windows7.0\NINA.Sequencer.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ShowReferences" AfterTargets="ResolveReferences">
+    <Message Text="ReferencePath: %(ReferencePath.Identity)" Importance="High" />
+  </Target>
+
+  <Target Name="ShowReferencesDesignTime" BeforeTargets="_GenerateTemporaryTargetAssembly">
+    <Message Text="Design ReferencePath: %(ReferencePath.Identity)" Importance="High" />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="NINA.Core">
+      <HintPath>$(UserProfile)\.nuget\packages\nina.core\3.0.0.9001\lib\net8.0-windows7.0\NINA.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="NINA.Sequencer">
+      <HintPath>$(UserProfile)\.nuget\packages\nina.sequencer\3.0.0.9001\lib\net8.0-windows7.0\NINA.Sequencer.dll</HintPath>
+    </Reference>
+    <Reference Include="NINA.Plugin">
+      <HintPath>$(UserProfile)\.nuget\packages\nina.plugin\3.0.0.9001\lib\net8.0-windows7.0\NINA.Plugin.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- System.Drawing.Common is included in .NET 8.0-windows framework, package reference may not be needed -->
+  <!-- Uncomment if you get compilation errors about System.Drawing -->
+  <!--
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+  -->
+
+</Project>
+

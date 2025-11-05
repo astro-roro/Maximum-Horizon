@@ -1,0 +1,246 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:NINA.Plugin.MaximumHorizon.Conditions"
+                    xmlns:options="clr-namespace:NINA.Plugin.MaximumHorizon.Options"
+                    xmlns:views="clr-namespace:NINA.Plugin.MaximumHorizon.Views"
+                    xmlns:plugin="clr-namespace:NINA.Plugin.MaximumHorizon"
+                    xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
+                    xmlns:nina="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer">
+
+    <!-- Plugin Icon: Roof overhanging a star -->
+    <!-- Simple roof shape (triangle) with a star below it -->
+    <Geometry x:Key="RoofOverStarIcon">
+        <!-- Roof (triangle) -->
+        M 8,8 L 24,2 L 40,8 L 40,8 Z
+        <!-- Star (5-pointed) -->
+        M 24,16 L 25,20 L 29,20 L 26,22 L 27,26 L 24,24 L 21,26 L 22,22 L 19,20 L 23,20 Z
+    </Geometry>
+    
+    <!-- DrawingBrush version for use as icon -->
+    <DrawingBrush x:Key="RoofOverStarIconBrush" Stretch="Uniform">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <!-- Roof -->
+                <GeometryDrawing Brush="#4A90E2">
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry>
+                            <PathFigure StartPoint="8,8" IsClosed="True">
+                                <LineSegment Point="24,2"/>
+                                <LineSegment Point="40,8"/>
+                            </PathFigure>
+                        </PathGeometry>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- Star -->
+                <GeometryDrawing Brush="#FFD700">
+                    <GeometryDrawing.Geometry>
+                        <PathGeometry>
+                            <PathFigure StartPoint="24,16" IsClosed="True">
+                                <LineSegment Point="25,20"/>
+                                <LineSegment Point="29,20"/>
+                                <LineSegment Point="26,22"/>
+                                <LineSegment Point="27,26"/>
+                                <LineSegment Point="24,24"/>
+                                <LineSegment Point="21,26"/>
+                                <LineSegment Point="22,22"/>
+                                <LineSegment Point="19,20"/>
+                                <LineSegment Point="23,20"/>
+                            </PathFigure>
+                        </PathGeometry>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+
+    <!-- Condition details template: content below the header -->
+    <DataTemplate x:Key="Loop until Maximum Horizon_Details">
+        <Grid Margin="0" Background="Transparent" VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Keep content minimal and single-line to avoid header interference -->
+            <TextBlock Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="✓ Visible"/>
+                        <Setter Property="Foreground" Value="Green"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTargetVisible}" Value="False">
+                                <Setter Property="Text" Value="✗ Blocked"/>
+                                <Setter Property="Foreground" Value="Red"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <TextBlock Grid.Column="1" Text="Current Alt:" FontWeight="SemiBold" Margin="0,0,4,0" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2" Text="{Binding CurrentAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Column="3" Text="Max Alt:" FontWeight="SemiBold" Margin="12,0,4,0" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="4" Text="{Binding MaximumAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Some hosts use _Body instead of _Details; provide both pointing to same content -->
+    <DataTemplate x:Key="Loop until Maximum Horizon_Body">
+        <ContentPresenter ContentTemplate="{StaticResource Loop until Maximum Horizon_Details}"/>
+    </DataTemplate>
+
+    <!-- Some hosts use _Content or _Summary; provide aliases to details -->
+    <DataTemplate x:Key="Loop until Maximum Horizon_Content">
+        <ContentPresenter ContentTemplate="{StaticResource Loop until Maximum Horizon_Details}"/>
+    </DataTemplate>
+
+    <DataTemplate x:Key="Loop until Maximum Horizon_Summary">
+        <ContentPresenter ContentTemplate="{StaticResource Loop until Maximum Horizon_Details}"/>
+    </DataTemplate>
+
+    <!-- Some hosts may suffix with _Condition for conditions specifically -->
+    <DataTemplate x:Key="Loop until Maximum Horizon_ConditionDetails">
+        <ContentPresenter ContentTemplate="{StaticResource Loop until Maximum Horizon_Details}"/>
+    </DataTemplate>
+
+    <DataTemplate x:Key="Loop until Maximum Horizon_ConditionBody">
+        <ContentPresenter ContentTemplate="{StaticResource Loop until Maximum Horizon_Details}"/>
+    </DataTemplate>
+
+    <!-- Fallback: base name template (may override host header; verify if needed) -->
+    <DataTemplate x:Key="Loop until Maximum Horizon">
+        <ContentPresenter ContentTemplate="{StaticResource Loop until Maximum Horizon_Details}"/>
+    </DataTemplate>
+
+    <!-- Preferred: strongly-typed template using NINA's SequenceBlockView to ensure chrome (bin/3-dots) renders properly -->
+    <DataTemplate DataType="{x:Type local:MaximumHorizonCondition}">
+        <nina:SequenceBlockView>
+            <nina:SequenceBlockView.SequenceItemContent>
+                <Grid Margin="0" Background="Transparent" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="12"/> <!-- spacer -->
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="✓ Visible"/>
+                                <Setter Property="Foreground" Value="Green"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTargetVisible}" Value="False">
+                                        <Setter Property="Text" Value="✗ Blocked"/>
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Grid.Column="1" Text="Current Alt:" FontWeight="SemiBold" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding CurrentAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Column="3" Text="Max Alt:" FontWeight="SemiBold" Margin="12,0,4,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="{Binding MaximumAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="5" Text="Profile:" FontWeight="SemiBold" Margin="12,0,4,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="6" Text="{Binding EffectiveProfileName}" VerticalAlignment="Center"/>
+                </Grid>
+            </nina:SequenceBlockView.SequenceItemContent>
+        </nina:SequenceBlockView>
+    </DataTemplate>
+
+    <!-- Mini sequencer template (optional) -->
+    <DataTemplate x:Key="NINA.Plugin.MaximumHorizon.Conditions.MaximumHorizonCondition_Mini">
+        <mini:MiniSequenceItem>
+            <mini:MiniSequenceItem.SequenceItemContent>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Alt:" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding CurrentAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+                    <TextBlock Text="|" Margin="8,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Max:" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding MaximumAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </mini:MiniSequenceItem.SequenceItemContent>
+        </mini:MiniSequenceItem>
+    </DataTemplate>
+
+    <!-- Simple Max Altitude Condition Template -->
+    <DataTemplate DataType="{x:Type local:SimpleMaxAltitudeCondition}">
+        <nina:SequenceBlockView>
+            <nina:SequenceBlockView.SequenceItemContent>
+                <Grid Margin="0" Background="Transparent" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="✓ Visible"/>
+                                <Setter Property="Foreground" Value="Green"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTargetVisible}" Value="False">
+                                        <Setter Property="Text" Value="✗ Blocked"/>
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Grid.Column="1" Text="Current Alt:" FontWeight="SemiBold" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding CurrentAltitude, StringFormat='{}{0:F1}°'}" VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Column="3" Text="Max Alt:" FontWeight="SemiBold" Margin="12,0,4,0" VerticalAlignment="Center"/>
+                    <Slider Grid.Column="4" 
+                            Minimum="0" 
+                            Maximum="90" 
+                            TickFrequency="5" 
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding MaxAltitude, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            VerticalAlignment="Center"
+                            Margin="4,0,4,0"/>
+                    <TextBlock Grid.Column="5" 
+                               Text="{Binding MaxAltitude, StringFormat='{}{0:F1}°'}" 
+                               VerticalAlignment="Center"
+                               Margin="4,0,0,0"/>
+                </Grid>
+            </nina:SequenceBlockView.SequenceItemContent>
+        </nina:SequenceBlockView>
+    </DataTemplate>
+
+    <!-- Intentionally no Summary/Header or implicit type template so host chrome (bin/3-dots) remains -->
+
+    <!-- Plugin Options View Template -->
+    <DataTemplate DataType="{x:Type options:MaximumHorizonOptions}">
+        <views:MaximumHorizonOptionsView/>
+    </DataTemplate>
+
+	<!-- Options Template required by NINA: key must be "<IPluginManifest.Name>_Options" -->
+	<DataTemplate x:Key="Maximum Horizon_Options">
+		<views:MaximumHorizonOptionsView/>
+	</DataTemplate>
+
+</ResourceDictionary>
+

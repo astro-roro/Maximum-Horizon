@@ -1,0 +1,6 @@
+D:\Work\GitHub\NINA Overhang\NINA.Plugin.MaximumHorizon\obj\Debug\net8.0-windows\NINA.Plugin.MaximumHorizon.csproj.AssemblyReference.cache
+D:\Work\GitHub\NINA Overhang\NINA.Plugin.MaximumHorizon\obj\Debug\net8.0-windows\Views\MaximumHorizonOptionsView.baml
+D:\Work\GitHub\NINA Overhang\NINA.Plugin.MaximumHorizon\obj\Debug\net8.0-windows\Views\MaximumHorizonOptionsView.g.cs
+D:\Work\GitHub\NINA Overhang\NINA.Plugin.MaximumHorizon\obj\Debug\net8.0-windows\GeneratedInternalTypeHelper.g.cs
+D:\Work\GitHub\NINA Overhang\NINA.Plugin.MaximumHorizon\obj\Debug\net8.0-windows\NINA.Plugin.MaximumHorizon_MarkupCompile.cache
+D:\Work\GitHub\NINA Overhang\NINA.Plugin.MaximumHorizon\obj\Debug\net8.0-windows\NINA.Plugin.MaximumHorizon_MarkupCompile.lref
