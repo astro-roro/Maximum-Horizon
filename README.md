@@ -4,7 +4,7 @@ A N.I.N.A. (Nighttime Imaging 'N' Astronomy) plugin that allows users to define 
 
 ## Features
 
-- **Loop until Maximum Horizon Condition**: Blocks sequence execution when targets exceed maximum altitude constraints, allowing your sequence to loop until the target becomes visible
+- **Loop until Maximum Horizon Condition**: Blocks sequence execution when targets exceed maximum altitude constraints, allowing your sequence to loop until the target becomes blocked
 - **Real-time Visibility Display**: Condition shows current altitude, maximum altitude, and active profile name in real-time
 - **Global Profile Selection**: Set a default horizon profile in plugin options that all conditions use automatically
 - **Condition-Level Override**: Optionally select a specific profile for each condition instance
@@ -21,7 +21,7 @@ A N.I.N.A. (Nighttime Imaging 'N' Astronomy) plugin that allows users to define 
 
 ## Installation
 
-1. Download the latest release from the [Releases](https://github.com/yourusername/NINA.Plugin.MaximumHorizon/releases) page
+1. Download the latest release from the [Releases](https://github.com/astro-roro/Maximum-Horizon/releases) page
 2. Extract the plugin DLL to `%localappdata%\NINA\Plugins\3.0.0\Maximum Horizon\`
 3. Restart NINA
 4. The plugin should appear in NINA's plugin manager under Options → Plugins
