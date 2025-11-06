@@ -37,23 +37,43 @@ namespace NINA.Plugin.MaximumHorizon.Views
             Loaded += OnLoaded;
         }
 
-        private void OnLoaded(object sender, RoutedEventArgs e)
+        private async void OnLoaded(object sender, RoutedEventArgs e)
         {
             if (DataContext is MaximumHorizonOptionsViewModel vm)
             {
+                // Subscribe to property changes to update visualization
                 vm.PropertyChanged += (s, args) =>
                 {
-                    if (args.PropertyName == nameof(vm.HorizonPoints))
+                    if (args.PropertyName == nameof(vm.HorizonPoints) || 
+                        args.PropertyName == nameof(vm.SelectedProfile))
                     {
-                        UpdateHorizonVisualization();
+                        // Small delay to ensure the property change has fully propagated
+                        System.Threading.Tasks.Task.Delay(10).ContinueWith(_ =>
+                        {
+                            Dispatcher.Invoke(() => UpdateHorizonVisualization());
+                        });
                     }
                 };
 
                 if (vm.HorizonPoints is System.Collections.Specialized.INotifyCollectionChanged collection)
                 {
-                    collection.CollectionChanged += (s, args) => UpdateHorizonVisualization();
+                    collection.CollectionChanged += (s, args) =>
+                    {
+                        // Small delay to ensure the collection change has fully propagated
+                        System.Threading.Tasks.Task.Delay(10).ContinueWith(_ =>
+                        {
+                            Dispatcher.Invoke(() => UpdateHorizonVisualization());
+                        });
+                    };
                 }
 
+                // Ensure the selected profile is loaded when view becomes visible
+                // This handles both first load and when user navigates away and returns
+                await vm.EnsureProfileLoadedAsync();
+                
+                // Update visualization after ensuring profile is loaded
+                // Give it a moment to ensure all property changes have propagated
+                await System.Threading.Tasks.Task.Delay(100);
                 UpdateHorizonVisualization();
             }
 
@@ -65,8 +85,18 @@ namespace NINA.Plugin.MaximumHorizon.Views
 
         private void UpdateHorizonVisualization()
         {
-            if (HorizonCanvas == null || DataContext is not MaximumHorizonOptionsViewModel vm || vm.HorizonPoints == null)
+            if (HorizonCanvas == null || DataContext is not MaximumHorizonOptionsViewModel vm)
             {
+                return;
+            }
+
+            // If HorizonPoints is null or empty, we might still want to show something
+            // But typically we should have points if a profile is selected
+            if (vm.HorizonPoints == null || vm.HorizonPoints.Count == 0)
+            {
+                // Clear the canvas and show a message or just return
+                // Don't draw default visualization if no points are available
+                HorizonCanvas.Children.Clear();
                 return;
             }
 

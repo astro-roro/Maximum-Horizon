@@ -31,7 +31,6 @@ namespace NINA.Plugin.MaximumHorizon
         public override Task Initialize()
         {
             Logger.Info("Maximum Horizon Plugin initialized");
-            Logger.Debug($"MaximumHorizonPlugin: Using shared service. SelectedProfileName='{_horizonService.SelectedProfileName}'");
             try
             {
                 // Ensure our resources (including the Options template) are merged into the app
@@ -39,11 +38,6 @@ namespace NINA.Plugin.MaximumHorizon
                 if (global::System.Windows.Application.Current != null)
                 {
                     global::System.Windows.Application.Current.Resources.MergedDictionaries.Add(dict);
-                    Logger.Debug("MaximumHorizonPlugin: Merged MaximumHorizonResources into Application resources");
-                }
-                else
-                {
-                    Logger.Debug("MaximumHorizonPlugin: Application.Current is null; skipping resource merge");
                 }
             }
             catch (Exception ex)

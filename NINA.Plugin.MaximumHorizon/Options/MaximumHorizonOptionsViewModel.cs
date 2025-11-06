@@ -31,6 +31,21 @@ namespace NINA.Plugin.MaximumHorizon.Options
             _imageExtractor = new ImageHorizonExtractor();
             _options = new MaximumHorizonOptions(_horizonService);
             Initialize();
+            
+            // Also try to load profile immediately if one is selected in the service
+            // This helps with first load scenario
+            var initialProfile = _horizonService.SelectedProfileName;
+            if (!string.IsNullOrWhiteSpace(initialProfile))
+            {
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    await System.Threading.Tasks.Task.Delay(100); // Small delay to ensure initialization is complete
+                    if (string.IsNullOrWhiteSpace(SelectedProfile))
+                    {
+                        SelectedProfile = initialProfile;
+                    }
+                });
+            }
         }
 
         public MaximumHorizonOptionsViewModel(MaximumHorizonOptions options)
@@ -66,17 +81,70 @@ namespace NINA.Plugin.MaximumHorizon.Options
                 }
                 if (e.PropertyName == nameof(_options.SelectedProfile))
                 {
+                    // Only update if different to avoid circular updates
+                    if (!string.Equals(SelectedProfile, _options.SelectedProfile, StringComparison.Ordinal))
+                {
                     SelectedProfile = _options.SelectedProfile;
+                    }
                 }
                 if (e.PropertyName == nameof(_options.CurrentProfile))
                 {
                     RefreshHorizonPoints();
+                    // Also trigger SelectedProfile change to ensure UI updates
+                    RaisePropertyChanged(nameof(SelectedProfile));
                 }
             };
 
-            WpfApplication.Current?.Dispatcher?.InvokeAsync(async () => await RefreshAvailableProfilesAsync());
+            // Initialize profile loading synchronously where possible
+            // Use InvokeAsync to ensure we're on the UI thread, but await it properly
+            var initTask = WpfApplication.Current?.Dispatcher?.InvokeAsync(async () => 
+            {
+                await RefreshAvailableProfilesAsync();
+                // Ensure selected profile is synced with options when view initializes
+                // Check both the service and options for the selected profile
+                var serviceSelectedProfile = _options.SelectedProfile;
+                if (string.IsNullOrWhiteSpace(serviceSelectedProfile))
+                {
+                    // Try to get from service directly
+                    serviceSelectedProfile = _horizonService.SelectedProfileName;
+                }
+                
+                if (!string.IsNullOrWhiteSpace(serviceSelectedProfile))
+                {
+                    SelectedProfile = serviceSelectedProfile;
+                    // Ensure the profile is loaded if CurrentProfile is null
+                    if (_options.CurrentProfile == null || 
+                        !string.Equals(_options.CurrentProfile.Name, serviceSelectedProfile, StringComparison.Ordinal))
+                    {
+                        await _options.LoadSelectedProfileAsync();
+                        RefreshHorizonPoints();
+                        // Trigger a property change to ensure UI updates
+                        RaisePropertyChanged(nameof(HorizonPoints));
+                    }
+                }
+            });
+            
+            // Store the initialization task so we can await it later if needed
+            _initializationTask = initTask?.Task;
+            
+            // When initialization completes, ensure we trigger any necessary updates
+            if (_initializationTask != null)
+            {
+                _initializationTask.ContinueWith(_ =>
+                {
+                    WpfApplication.Current?.Dispatcher?.Invoke(() =>
+                    {
+                        // Trigger property changes to ensure UI updates
+                        RaisePropertyChanged(nameof(SelectedProfile));
+                        RaisePropertyChanged(nameof(HorizonPoints));
+                    });
+                }, System.Threading.Tasks.TaskContinuationOptions.OnlyOnRanToCompletion);
+            }
+            
             _horizonService.ProfilesChanged += async (sender, e) => await RefreshAvailableProfilesAsync();
         }
+
+        private System.Threading.Tasks.Task? _initializationTask;
 
         private static void RunOnUIThread(Action action)
         {
@@ -116,7 +184,14 @@ namespace NINA.Plugin.MaximumHorizon.Options
                 {
                     _options.SelectedProfile = value;
                 }
+                // Refresh will happen automatically when CurrentProfile property changes
+                // via the PropertyChanged subscription in Initialize()
+                // But ensure we refresh if CurrentProfile is already set for this profile
+                if (_options.CurrentProfile != null && 
+                    string.Equals(_options.CurrentProfile.Name, value, StringComparison.Ordinal))
+                {
                 RefreshHorizonPoints();
+                }
             }
         }
 
@@ -231,18 +306,32 @@ namespace NINA.Plugin.MaximumHorizon.Options
 
         private void RefreshHorizonPoints()
         {
-            RunOnUIThread(() =>
+            // Use dispatcher to ensure we're on UI thread
+            var dispatcher = WpfApplication.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
             {
-                if (_options.CurrentProfile != null)
+                dispatcher.Invoke(() => RefreshHorizonPoints());
+                return;
+            }
+
+            // We're on UI thread now
+            if (_options.CurrentProfile != null && _options.CurrentProfile.Points != null && _options.CurrentProfile.Points.Count > 0)
                 {
-                    HorizonPoints = new ObservableCollection<HorizonPoint>(
+                var newPoints = new ObservableCollection<HorizonPoint>(
                         _options.CurrentProfile.Points.OrderBy(p => p.Azimuth));
+                HorizonPoints = newPoints;
                 }
                 else
                 {
                     HorizonPoints = new ObservableCollection<HorizonPoint>();
                 }
                 RaisePropertyChanged(nameof(HorizonPoints));
+            
+            // Explicitly trigger a second property change to ensure UI updates
+            // Sometimes WPF needs a nudge to update bindings
+            System.Threading.Tasks.Task.Delay(10).ContinueWith(_ =>
+            {
+                dispatcher?.Invoke(() => RaisePropertyChanged(nameof(HorizonPoints)));
             });
         }
 
@@ -400,14 +489,35 @@ namespace NINA.Plugin.MaximumHorizon.Options
             }
         }
 
-        private void LoadProfile(string? profileName)
+        private async void LoadProfile(string? profileName)
         {
             if (string.IsNullOrWhiteSpace(profileName))
             {
                 return;
             }
 
+            // Update the selected profile
+            if (!string.Equals(SelectedProfile, profileName, StringComparison.Ordinal))
+            {
             SelectedProfile = profileName;
+            }
+            
+            // Ensure the profile is loaded asynchronously
+            // This method is called from the view when it loads, so we need to ensure CurrentProfile is set
+            try
+            {
+                if (_options.CurrentProfile == null || 
+                    !string.Equals(_options.CurrentProfile?.Name, profileName, StringComparison.Ordinal))
+                {
+                    await _options.LoadSelectedProfileAsync();
+                    // Refresh the horizon points after loading
+                    RefreshHorizonPoints();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Error loading profile '{profileName}': {ex.Message}", ex);
+            }
         }
 
         private void AddRow()
@@ -438,6 +548,79 @@ namespace NINA.Plugin.MaximumHorizon.Options
                 // Trigger visualization update
                 RaisePropertyChanged(nameof(HorizonPoints));
             });
+        }
+
+        /// <summary>
+        /// Ensures the currently selected profile is loaded when the view becomes visible.
+        /// This is called when navigating back to the options view.
+        /// </summary>
+        public async System.Threading.Tasks.Task EnsureProfileLoadedAsync()
+        {
+            // Wait for initialization to complete if it's still running
+            if (_initializationTask != null && !_initializationTask.IsCompleted)
+            {
+                try
+                {
+                    await _initializationTask;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Error waiting for initialization: {ex.Message}", ex);
+                }
+            }
+
+            // First, sync SelectedProfile from the service/options to ensure we have the right value
+            // Check both the service and options
+            var serviceSelectedProfile = _options.SelectedProfile;
+            if (string.IsNullOrWhiteSpace(serviceSelectedProfile))
+            {
+                // Try to get from service directly
+                serviceSelectedProfile = _horizonService.SelectedProfileName;
+            }
+            
+            if (!string.IsNullOrWhiteSpace(serviceSelectedProfile))
+            {
+                if (string.IsNullOrWhiteSpace(SelectedProfile) || 
+                    !string.Equals(SelectedProfile, serviceSelectedProfile, StringComparison.Ordinal))
+                {
+                    SelectedProfile = serviceSelectedProfile;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(SelectedProfile))
+            {
+                // No profile selected, clear points
+                RefreshHorizonPoints();
+                return;
+            }
+
+            try
+            {
+                // Check if we need to load the profile
+                if (_options.CurrentProfile == null || 
+                    !string.Equals(_options.CurrentProfile?.Name, SelectedProfile, StringComparison.Ordinal))
+                {
+                    // Ensure SelectedProfile is synced with options first
+                    if (!string.Equals(_options.SelectedProfile, SelectedProfile, StringComparison.Ordinal))
+                    {
+                        _options.SelectedProfile = SelectedProfile;
+                    }
+                    // Load the profile and wait for it to complete
+                    await _options.LoadSelectedProfileAsync();
+                    // Wait a moment for property change events to propagate
+                    await System.Threading.Tasks.Task.Delay(50);
+                }
+                
+                // Always refresh the horizon points to ensure they're up to date
+                RefreshHorizonPoints();
+                
+                // Wait a bit more to ensure the UI has updated
+                await System.Threading.Tasks.Task.Delay(50);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Error ensuring profile '{SelectedProfile}' is loaded: {ex.Message}", ex);
+            }
         }
     }
 }

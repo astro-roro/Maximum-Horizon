@@ -16,6 +16,7 @@ namespace NINA.Plugin.MaximumHorizon.Services
     public class MaximumHorizonService : IMaximumHorizonService
     {
         private readonly string _profilesDirectory;
+        private readonly string _settingsFilePath;
         private readonly Dictionary<string, HorizonProfile> _profileCache = new(StringComparer.OrdinalIgnoreCase);
         private string _selectedProfileName = string.Empty;
         private double _globalMarginBuffer = 0.0;
@@ -26,16 +27,22 @@ namespace NINA.Plugin.MaximumHorizon.Services
         [ImportingConstructor]
         public MaximumHorizonService()
         {
-            _profilesDirectory = Path.Combine(
+            var pluginDataDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "NINA",
                 "Plugins",
-                "MaximumHorizon",
-                "Profiles"
+                "MaximumHorizon"
             );
 
-            // Ensure profiles directory exists
+            _profilesDirectory = Path.Combine(pluginDataDirectory, "Profiles");
+            _settingsFilePath = Path.Combine(pluginDataDirectory, "settings.json");
+
+            // Ensure directories exist
             Directory.CreateDirectory(_profilesDirectory);
+            Directory.CreateDirectory(pluginDataDirectory);
+
+            // Load saved settings
+            LoadSettings();
 
             // Preload cache synchronously to support fast, non-blocking lookups on UI thread
             try
@@ -62,6 +69,7 @@ namespace NINA.Plugin.MaximumHorizon.Services
             {
                 Logger.Warning($"Failed to initialize profile cache: {ex.Message}");
             }
+
         }
 
         public async Task<IEnumerable<string>> GetAvailableProfilesAsync()
@@ -283,7 +291,7 @@ namespace NINA.Plugin.MaximumHorizon.Services
                 if (!string.Equals(_selectedProfileName, newValue, StringComparison.Ordinal))
                 {
                     _selectedProfileName = newValue;
-                    Logger.Debug($"MaximumHorizonService: SelectedProfileName set to '{_selectedProfileName}'");
+                    SaveSettings();
                     OnSettingsChanged();
                 }
             }
@@ -298,6 +306,7 @@ namespace NINA.Plugin.MaximumHorizon.Services
                 if (Math.Abs(_globalMarginBuffer - clamped) > 0.0001)
                 {
                     _globalMarginBuffer = clamped;
+                    SaveSettings();
                     OnSettingsChanged();
                 }
             }
@@ -399,6 +408,52 @@ namespace NINA.Plugin.MaximumHorizon.Services
         private void OnSettingsChanged()
         {
             SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void LoadSettings()
+        {
+            try
+            {
+                if (File.Exists(_settingsFilePath))
+                {
+                    var json = File.ReadAllText(_settingsFilePath);
+                    var settings = JsonSerializer.Deserialize<PluginSettings>(json);
+                    if (settings != null)
+                    {
+                        _selectedProfileName = settings.SelectedProfileName ?? string.Empty;
+                        _globalMarginBuffer = settings.GlobalMarginBuffer;
+                        Logger.Info($"MaximumHorizonService: Loaded settings - SelectedProfileName='{_selectedProfileName}', GlobalMarginBuffer={_globalMarginBuffer}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"Failed to load settings from {_settingsFilePath}: {ex.Message}");
+            }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                var settings = new PluginSettings
+                {
+                    SelectedProfileName = _selectedProfileName,
+                    GlobalMarginBuffer = _globalMarginBuffer
+                };
+                var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_settingsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"Failed to save settings to {_settingsFilePath}: {ex.Message}");
+            }
+        }
+
+        private class PluginSettings
+        {
+            public string? SelectedProfileName { get; set; }
+            public double GlobalMarginBuffer { get; set; }
         }
     }
 }

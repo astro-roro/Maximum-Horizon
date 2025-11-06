@@ -15,14 +15,32 @@ namespace NINA.Plugin.MaximumHorizon.Services
             {
                 if (_shared != null) return _shared;
                 _shared = new MaximumHorizonService();
-                NINA.Core.Utility.Logger.Debug($"MaximumHorizonServiceAccessor: Shared service resolved. SelectedProfileName='{_shared.SelectedProfileName}'");
+                // Sync global selected profile into the service instance if it's set (but don't override if service already loaded one from disk)
+                if (!string.IsNullOrWhiteSpace(_globalSelectedProfileName) && string.IsNullOrWhiteSpace(_shared.SelectedProfileName))
+                {
+                    _shared.SelectedProfileName = _globalSelectedProfileName;
+                }
+                else if (!string.IsNullOrWhiteSpace(_shared.SelectedProfileName))
+                {
+                    // Service loaded a profile from disk, sync it to global
+                    _globalSelectedProfileName = _shared.SelectedProfileName;
+                }
                 return _shared;
             }
         }
 
         public static void SetGlobalSelectedProfile(string profileName)
         {
-            _globalSelectedProfileName = profileName ?? string.Empty;
+            var newValue = profileName ?? string.Empty;
+            if (_globalSelectedProfileName != newValue)
+            {
+                _globalSelectedProfileName = newValue;
+                // Also sync to shared service instance if it exists
+                if (_shared != null && _shared.SelectedProfileName != newValue)
+                {
+                    _shared.SelectedProfileName = newValue;
+                }
+            }
         }
 
         public static string GetGlobalSelectedProfile()

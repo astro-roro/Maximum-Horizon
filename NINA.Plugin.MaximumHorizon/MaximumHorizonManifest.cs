@@ -12,13 +12,13 @@ namespace NINA.Plugin.MaximumHorizon
         {
             Identifier = "NINA.Plugin.MaximumHorizon";
             Name = "Maximum Horizon";
-            Version = new PluginVersion("1.0.1.2");
+            Version = new PluginVersion("1.0.2.0");
             Author = "Rohan Hinton";
-            Homepage = "https://github.com/yourusername/NINA.Plugin.MaximumHorizon";
-            Repository = "https://github.com/yourusername/NINA.Plugin.MaximumHorizon";
+            Homepage = "https://github.com/astro-roro/Maximum-Horizon";
+            Repository = "https://github.com/astro-roro/Maximum-Horizon";
             License = "MIT";
             LicenseURL = "https://opensource.org/licenses/MIT";
-            ChangelogURL = "https://github.com/yourusername/NINA.Plugin.MaximumHorizon/CHANGELOG.md";
+            ChangelogURL = "https://github.com/astro-roro/Maximum-Horizon";
             Tags = new[] { "Sequencer", "Condition", "Horizon" };
             MinimumApplicationVersion = new PluginVersion("3.0.0.0");
 
@@ -33,7 +33,7 @@ namespace NINA.Plugin.MaximumHorizon
 
             Installer = new PluginInstallerDetails
             {
-                URL = "https://github.com/yourusername/NINA.Plugin.MaximumHorizon/releases/download/v1.0.0/NINA.Plugin.MaximumHorizon.zip",
+                URL = "https://github.com/astro-roro/Maximum-Horizon",
                 Type = InstallerType.ARCHIVE,
                 Checksum = "YOUR_CHECKSUM_HERE",
                 ChecksumType = InstallerChecksum.SHA256

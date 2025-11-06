@@ -43,33 +43,57 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
         private INotifyPropertyChanged? _targetNotify;
         private IProfileService? _profileService;
         private readonly System.Timers.Timer _updateTimer = new System.Timers.Timer(2000) { AutoReset = true };
+        private string _lastKnownServiceProfile = string.Empty; // Track service profile to detect changes
 
         // Prefer MEF-injected shared service; fall back is set later if MEF fails
         [ImportingConstructor]
         public MaximumHorizonCondition([Import(AllowDefault = true)] IMaximumHorizonService? horizonService = null)
         {
-            if (horizonService != null)
+            // Always use the shared service instance to ensure consistency
+            _horizonService = horizonService ?? MaximumHorizonServiceAccessor.GetShared();
+            
+            // If we got a different instance from MEF, sync it to shared and use shared
+            if (horizonService != null && horizonService != _horizonService)
             {
-                _horizonService = horizonService;
-                _horizonService.ProfilesChanged += async (_, __) => await LoadAvailableProfilesAsync();
-                _horizonService.SettingsChanged += (_, __) => { Logger.Debug($"MaximumHorizonCondition: SettingsChanged → Service.SelectedProfileName='{_horizonService.SelectedProfileName}'"); SafeUpdateState(); };
-                Logger.Debug("MaximumHorizonCondition: MEF-injected horizon service available");
+                var shared = MaximumHorizonServiceAccessor.GetShared();
+                if (!string.IsNullOrWhiteSpace(horizonService.SelectedProfileName) &&
+                    !string.Equals(shared.SelectedProfileName, horizonService.SelectedProfileName, StringComparison.Ordinal))
+                {
+                    shared.SelectedProfileName = horizonService.SelectedProfileName;
+                }
+                _horizonService = shared;
             }
-            else
-            {
-                Logger.Debug("MaximumHorizonCondition: No MEF-injected service provided");
-            }
-            if (_horizonService == null)
-        {
-                _horizonService = MaximumHorizonServiceAccessor.GetShared();
-                _horizonService.SettingsChanged += (_, __) => { Logger.Debug($"MaximumHorizonCondition: SettingsChanged(shared) → Service.SelectedProfileName='{_horizonService.SelectedProfileName}'"); SafeUpdateState(); };
-                Logger.Debug($"MaximumHorizonCondition: Constructor resolved shared service. Service.SelectedProfileName='{_horizonService.SelectedProfileName}'");
-            }
+            
+            // Subscribe to events - use the shared service instance
+            _horizonService.ProfilesChanged += async (_, __) => await LoadAvailableProfilesAsync();
+            _horizonService.SettingsChanged += OnSettingsChanged;
+            
             SelectedProfile = string.Empty;
             MarginBuffer = 0.0;
             Name = "Maximum Horizon Check";
             Description = "Blocks sequence execution when target exceeds maximum altitude constraints";
             Category = "Maximum Horizon";
+            
+            // Initialize tracking of service profile
+            var currentServiceProfile = _horizonService.SelectedProfileName ?? string.Empty;
+            _lastKnownServiceProfile = currentServiceProfile;
+            
+            // If condition was deserialized with a SelectedProfile that matches the current service value,
+            // treat it as "following" the service and clear it so it will continue following changes
+            if (!string.IsNullOrWhiteSpace(SelectedProfile) && 
+                string.Equals(SelectedProfile, currentServiceProfile, StringComparison.Ordinal))
+            {
+                SelectedProfile = string.Empty;
+            }
+            
+            // Initialize EffectiveProfileName from service to ensure UI shows correct state
+            var initialEffectiveProfile = !string.IsNullOrWhiteSpace(SelectedProfile)
+                ? SelectedProfile
+                : (!string.IsNullOrWhiteSpace(currentServiceProfile)
+                    ? currentServiceProfile
+                    : Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile());
+            EffectiveProfileName = initialEffectiveProfile;
+            
             _ = LoadAvailableProfilesAsync();
             _updateTimer.Elapsed += (_, __) => SafeUpdateState();
             _updateTimer.Enabled = true;
@@ -89,11 +113,22 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                         !string.Equals(shared.SelectedProfileName, value.SelectedProfileName, StringComparison.Ordinal))
                     {
                         shared.SelectedProfileName = value.SelectedProfileName;
-                        Logger.Debug($"MaximumHorizonCondition: Synced injected SelectedProfileName='{value.SelectedProfileName}' into shared service");
                     }
                     _horizonService = shared;
                     _horizonService.ProfilesChanged += async (_, __) => await LoadAvailableProfilesAsync();
-                    Logger.Debug($"MaximumHorizonCondition: HorizonService injected via property. Using shared. Service.SelectedProfileName='{_horizonService.SelectedProfileName}'");
+                    _horizonService.SettingsChanged += OnSettingsChanged;
+                    
+                    // Initialize tracking of service profile
+                    _lastKnownServiceProfile = _horizonService.SelectedProfileName ?? string.Empty;
+                    
+                    // Sync EffectiveProfileName with service when service is set
+                    var effectiveProfile = !string.IsNullOrWhiteSpace(SelectedProfile)
+                        ? SelectedProfile
+                        : (!string.IsNullOrWhiteSpace(_horizonService.SelectedProfileName)
+                            ? _horizonService.SelectedProfileName
+                            : Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile());
+                    EffectiveProfileName = effectiveProfile;
+                    
                     _ = LoadAvailableProfilesAsync();
                 }
             }
@@ -124,14 +159,12 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                 {
                     _containerNotify = npc;
                     _containerNotify.PropertyChanged += OnContainerPropertyChanged;
-                    Logger.Debug("MaximumHorizonCondition: Subscribed to container PropertyChanged");
                 }
                 var tgt = _targetContainer?.Target as INotifyPropertyChanged;
                 if (tgt != null)
                 {
                     _targetNotify = tgt;
                     _targetNotify.PropertyChanged += OnTargetPropertyChanged;
-                    Logger.Debug($"MaximumHorizonCondition: Subscribed to target PropertyChanged on '{tgt.GetType().FullName}'");
                 }
 
                 SafeUpdateState();
@@ -165,10 +198,38 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                 AvailableProfiles = profiles.ToList();
                 RaisePropertyChanged(nameof(AvailableProfiles));
 
-                if (AvailableProfiles.Count == 1 && string.IsNullOrWhiteSpace(SelectedProfile))
+                // If condition has a SelectedProfile that no longer exists, clear it and use service's selection
+                if (!string.IsNullOrWhiteSpace(SelectedProfile) && !AvailableProfiles.Contains(SelectedProfile))
+                {
+                    SelectedProfile = string.Empty;
+                }
+
+                // Get the current service selected profile (this is the source of truth)
+                var serviceSelectedProfile = _horizonService?.SelectedProfileName ?? string.Empty;
+                var globalSelectedProfile = Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile();
+                var resolvedServiceProfile = !string.IsNullOrWhiteSpace(serviceSelectedProfile) 
+                    ? serviceSelectedProfile 
+                    : globalSelectedProfile;
+                
+                // Only auto-select first profile if there's exactly one, nothing is selected in condition,
+                // AND the service also has nothing selected (don't override service selection)
+                if (AvailableProfiles.Count == 1 && 
+                    string.IsNullOrWhiteSpace(SelectedProfile) && 
+                    string.IsNullOrWhiteSpace(resolvedServiceProfile))
                 {
                     SelectedProfile = AvailableProfiles[0];
                 }
+                // If service has a selection but condition doesn't, ensure condition follows service
+                else if (string.IsNullOrWhiteSpace(SelectedProfile) && !string.IsNullOrWhiteSpace(resolvedServiceProfile))
+                {
+                    // Condition should follow service - don't set SelectedProfile, let it use service value
+                }
+                
+                // Sync EffectiveProfileName after profiles are loaded
+                var effectiveProfile = !string.IsNullOrWhiteSpace(SelectedProfile)
+                    ? SelectedProfile
+                    : resolvedServiceProfile;
+                EffectiveProfileName = effectiveProfile;
             }
             catch (Exception ex)
             {
@@ -216,12 +277,10 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                 {
                     if (TryGetParentRaDec(out var raParentHours, out var decParentDeg))
                     {
-                        Logger.Debug($"MaximumHorizonCondition: ParentContext RA(h)={raParentHours:F4}, Dec={decParentDeg:F3}");
                         var (latP, lonP) = GetObserverLocation();
                         var utcP = DateTime.UtcNow;
                         var (altP, azP) = CoordinateConverter.ConvertRaDecToAltAz(raParentHours, decParentDeg, latP, lonP, utcP);
                         var aznP = azP % 360.0; if (aznP < 0) aznP += 360.0;
-                        Logger.Debug($"MaximumHorizonCondition: Alt/Az from ParentContext → Alt={altP:F2}, Az={aznP:F1}");
                         return (altP, aznP);
                     }
                 }
@@ -268,7 +327,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                         if (altFromMethod.HasValue && azFromMethod.HasValue)
                         {
                             var azn = azFromMethod.Value % 360.0; if (azn < 0) azn += 360.0;
-                            Logger.Debug($"MaximumHorizonCondition: Alt/Az from container methods → Alt={altFromMethod.Value:F2}, Az={azn:F1}");
                             return (altFromMethod.Value, azn);
                         }
                     }
@@ -420,7 +478,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                     var utc1 = DateTime.UtcNow;
                     var (alt1, az1) = CoordinateConverter.ConvertRaDecToAltAz(raHh, decDd, lat1, lon1, utc1);
                     var azn1 = az1 % 360.0; if (azn1 < 0) azn1 += 360.0;
-                    Logger.Debug($"MaximumHorizonCondition: Alt/Az from RA(h)m s / Dec d m s (target) → Alt={alt1:F2}, Az={azn1:F1}");
                     return (alt1, azn1);
                 }
                 if (_targetContainer != null && TryGetRaHoursFromHms(_targetContainer, out var raHh2) && TryGetDecDegFromDms(_targetContainer, out var decDd2))
@@ -429,7 +486,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                     var utc2 = DateTime.UtcNow;
                     var (alt2, az2) = CoordinateConverter.ConvertRaDecToAltAz(raHh2, decDd2, lat2, lon2, utc2);
                     var azn2 = az2 % 360.0; if (azn2 < 0) azn2 += 360.0;
-                    Logger.Debug($"MaximumHorizonCondition: Alt/Az from RA(h)m s / Dec d m s (container) → Alt={alt2:F2}, Az={azn2:F1}");
                     return (alt2, azn2);
                 }
 
@@ -518,7 +574,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                     longitude,
                     utcNow
                 );
-                Logger.Debug($"MaximumHorizonCondition: Alt/Az from generic RA/Dec → Alt={altitude:F2}, Az={azimuth:F1}");
 
                 // Normalize azimuth to [0, 360)
                 var az = azimuth % 360.0;
@@ -542,10 +597,8 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                 var parent = parentPi?.GetValue(this);
                 if (parent == null)
                 {
-                    Logger.Debug("MaximumHorizonCondition: Parent is null in TryGetParentRaDec");
                     return false;
                 }
-                Logger.Debug($"MaximumHorizonCondition: Parent type = {parent.GetType().FullName}");
 
                 // Try method RetrieveContextCoordinates() if present
                 var m = parent.GetType().GetMethod("RetrieveContextCoordinates", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
@@ -557,7 +610,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                 {
                     try { context = m?.Invoke(parent, Array.Empty<object>()); } catch { }
                 }
-                Logger.Debug($"MaximumHorizonCondition: RetrieveContextCoordinates found={m != null}, context null? {context == null}");
 
                 // The example shows .Coordinates.Coordinates; walk that chain flexibly
                 object? coordsHolder = context ?? parent;
@@ -579,7 +631,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                         var decVal = Convert.ToDouble(decProp.GetValue(coordsHolder));
                         raHours = raVal > 24.0 ? raVal / 15.0 : raVal;
                         decDegrees = decVal;
-                        Logger.Debug($"MaximumHorizonCondition: Parent coords RA/Dec resolved: RA(h)={raHours:F4}, Dec={decDegrees:F3}");
                         return true;
                     }
                 }
@@ -591,7 +642,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                     var targetObj = targetPi?.GetValue(parent);
                     if (targetObj != null)
                     {
-                        Logger.Debug($"MaximumHorizonCondition: Inspecting parent.Target type {targetObj.GetType().FullName}");
                         // Special-case NINA.Astrometry.InputTarget: InputCoordinates -> Coordinates
                         try
                         {
@@ -609,7 +659,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                                     var decVal = Convert.ToDouble(decPi.GetValue(cVal));
                                     raHours = raVal > 24.0 ? raVal / 15.0 : raVal;
                                     decDegrees = decVal;
-                                    Logger.Debug($"MaximumHorizonCondition: Parent.Target.InputCoordinates.Coordinates RA/Dec resolved: RA(h)={raHours:F4}, Dec={decDegrees:F3}");
                                     return true;
                                 }
                             }
@@ -633,7 +682,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                                 var decVal = Convert.ToDouble(tdec.GetValue(tCoords));
                                 raHours = raVal > 24.0 ? raVal / 15.0 : raVal;
                                 decDegrees = decVal;
-                                Logger.Debug($"MaximumHorizonCondition: Parent.Target coords RA/Dec resolved: RA(h)={raHours:F4}, Dec={decDegrees:F3}");
                                 return true;
                             }
                         }
@@ -647,7 +695,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                             var decVal = Convert.ToDouble(decPT.GetValue(targetObj));
                             raHours = raVal > 24.0 ? raVal / 15.0 : raVal;
                             decDegrees = decVal;
-                            Logger.Debug($"MaximumHorizonCondition: Parent.Target RA/Dec resolved: RA(h)={raHours:F4}, Dec={decDegrees:F3}");
                             return true;
                         }
                     }
@@ -659,14 +706,68 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
         }
 
         private string _selectedProfile = string.Empty;
+        private bool _hasExplicitOverride = false; // Track if user has explicitly set an override
         [JsonProperty]
         public string SelectedProfile
         {
             get => _selectedProfile;
             set
             {
-                _selectedProfile = value;
+                var newValue = value ?? string.Empty;
+                
+                // If this is the first time SelectedProfile is being set (likely from deserialization)
+                // and the service has a selection, clear it so condition follows the service
+                // This ensures conditions always follow the options menu by default
+                if (!_hasExplicitOverride && !string.IsNullOrWhiteSpace(newValue) && _horizonService != null)
+                {
+                    var currentServiceProfile = _horizonService.SelectedProfileName ?? string.Empty;
+                    var globalProfile = Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile();
+                    var resolvedServiceProfile = !string.IsNullOrWhiteSpace(currentServiceProfile) ? currentServiceProfile : globalProfile;
+                    
+                    // If service has a selection, always follow it (don't use deserialized value)
+                    if (!string.IsNullOrWhiteSpace(resolvedServiceProfile))
+                    {
+                        newValue = string.Empty;
+                    }
+                    // Only if service has no selection and we're setting a value, keep it
+                    // This allows the condition to work even if no service selection exists
+                }
+                // If we've already had an explicit override, allow the new value (user is changing it)
+                else if (_hasExplicitOverride)
+                {
+                    // User is explicitly setting/changing the override
+                    _hasExplicitOverride = true;
+                }
+                
+                // If setting a non-empty value that's different from service, mark as explicit override
+                if (!string.IsNullOrWhiteSpace(newValue))
+                {
+                    var currentServiceProfile = _horizonService?.SelectedProfileName ?? string.Empty;
+                    var globalProfile = Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile();
+                    var resolvedServiceProfile = !string.IsNullOrWhiteSpace(currentServiceProfile) ? currentServiceProfile : globalProfile;
+                    
+                    if (!string.IsNullOrWhiteSpace(resolvedServiceProfile) && !string.Equals(newValue, resolvedServiceProfile, StringComparison.Ordinal))
+                    {
+                        _hasExplicitOverride = true;
+                    }
+                }
+                else if (string.IsNullOrWhiteSpace(newValue))
+                {
+                    // Clearing the override - condition will follow service again
+                    _hasExplicitOverride = false;
+                }
+                
+                _selectedProfile = newValue;
                 RaisePropertyChanged();
+                
+                // Update EffectiveProfileName when SelectedProfile changes
+                var effectiveProfile = !string.IsNullOrWhiteSpace(_selectedProfile)
+                    ? _selectedProfile
+                    : (!string.IsNullOrWhiteSpace(_horizonService?.SelectedProfileName)
+                        ? _horizonService.SelectedProfileName
+                        : Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile());
+                EffectiveProfileName = effectiveProfile;
+                
                 SafeUpdateState();
             }
         }
@@ -744,32 +845,46 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
         {
             try
             {
-                if (_horizonService == null)
-                {
-                    _horizonService = MaximumHorizonServiceAccessor.GetShared();
-                }
-                if (_horizonService == null)
+                // Always get fresh service reference to ensure we have latest SelectedProfileName
+                var service = _horizonService ?? MaximumHorizonServiceAccessor.GetShared();
+                if (service == null)
                 {
                     // Last resort: do nothing without service context
                     Logger.Warning("MaximumHorizonCondition: Horizon service not available; skipping check");
                     return true;
                 }
-                Logger.Debug($"MaximumHorizonCondition: Check() SelectedProfile(local)='{SelectedProfile}', Service.SelectedProfileName='{_horizonService.SelectedProfileName}'");
+                if (service != _horizonService)
+                {
+                    _horizonService = service;
+                }
+                
+                // Get effective profile - DON'T fall back to first profile if user has selected one
+                // Always read fresh from service to ensure we have the latest value
+                var serviceSelectedProfile = _horizonService.SelectedProfileName;
+                var globalSelectedProfile = Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile();
                 var effectiveProfile = !string.IsNullOrWhiteSpace(SelectedProfile)
                     ? SelectedProfile
-                    : _horizonService.SelectedProfileName;
-                Logger.Debug($"MaximumHorizonCondition: Check() effectiveProfile='{effectiveProfile}'");
+                    : (!string.IsNullOrWhiteSpace(serviceSelectedProfile)
+                        ? serviceSelectedProfile
+                        : globalSelectedProfile);
+                
+                // Update EffectiveProfileName to ensure UI shows correct profile
+                if (!string.Equals(EffectiveProfileName, effectiveProfile, StringComparison.Ordinal))
+                {
+                    EffectiveProfileName = effectiveProfile;
+                }
+                
                 if (string.IsNullOrWhiteSpace(effectiveProfile))
                 {
                     var profiles = _horizonService.GetAvailableProfiles().ToList();
-                    Logger.Debug($"MaximumHorizonCondition: Check() no effective profile; available profiles count={profiles.Count}");
-                    if (profiles.Count == 0)
+                    Logger.Warning($"MaximumHorizonCondition: Check() No profile selected. Available profiles: [{string.Join(", ", profiles)}]. Condition will allow execution.");
+                    // Don't fall back to first profile - let the user explicitly select one
+                    // But still update EffectiveProfileName to empty so UI shows no profile
+                    if (!string.IsNullOrWhiteSpace(EffectiveProfileName))
                     {
-                        Logger.Warning("No horizon profile available for Maximum Horizon Condition");
-                        return true;
+                        EffectiveProfileName = string.Empty;
                     }
-                    effectiveProfile = profiles[0];
-                    Logger.Debug($"MaximumHorizonCondition: Check() falling back to first available profile='{effectiveProfile}'");
+                    return true;
                 }
 
                 // Get current target or resolve from parent context
@@ -787,7 +902,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                         var altaz = CoordinateConverter.ConvertRaDecToAltAz(raH, decD, lat, lon, utc);
                         altitude = altaz.altitude;
                         azimuth = altaz.azimuth;
-                        Logger.Debug($"MaximumHorizonCondition: Check() using ParentContext Alt={altitude:F2}, Az={azimuth:F1}");
                     }
                     else
                     {
@@ -849,6 +963,67 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
             }
         }
 
+        private void OnSettingsChanged(object? sender, EventArgs e)
+        {
+            // Force refresh service reference to ensure we have the latest
+            var latestService = MaximumHorizonServiceAccessor.GetShared();
+            var newServiceProfile = latestService?.SelectedProfileName ?? string.Empty;
+            
+            if (latestService != null && latestService != _horizonService)
+            {
+                // Unsubscribe from old service
+                if (_horizonService != null)
+                {
+                    _horizonService.SettingsChanged -= OnSettingsChanged;
+                }
+                _horizonService = latestService;
+                // Re-subscribe to new service
+                _horizonService.SettingsChanged += OnSettingsChanged;
+            }
+            
+            // If the condition's SelectedProfile matches the old service value, it was likely just "following" the service
+            // Clear it so it will now follow the new service value
+            if (!string.IsNullOrWhiteSpace(SelectedProfile) && 
+                string.Equals(SelectedProfile, _lastKnownServiceProfile, StringComparison.Ordinal) &&
+                !string.Equals(SelectedProfile, newServiceProfile, StringComparison.Ordinal))
+            {
+                SelectedProfile = string.Empty;
+            }
+            
+            // Update the last known service profile
+            _lastKnownServiceProfile = newServiceProfile;
+            
+            // Update EffectiveProfileName to match service selection (when condition doesn't have local override)
+            var effectiveProfile = !string.IsNullOrWhiteSpace(SelectedProfile)
+                ? SelectedProfile
+                : (!string.IsNullOrWhiteSpace(newServiceProfile)
+                    ? newServiceProfile
+                    : Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile());
+            
+            // Update EffectiveProfileName on UI thread to ensure property change is propagated
+            void updateEffectiveProfile()
+            {
+                if (!string.Equals(EffectiveProfileName, effectiveProfile, StringComparison.Ordinal))
+                {
+                    EffectiveProfileName = effectiveProfile;
+                }
+            }
+            
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(updateEffectiveProfile);
+            }
+            else
+            {
+                updateEffectiveProfile();
+            }
+            
+            SafeUpdateState();
+            // Also trigger validation to update the condition's validation state and UI
+            Validate();
+        }
+
         private void OnTargetPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == null ||
@@ -872,7 +1047,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                 {
                     _horizonService = MaximumHorizonServiceAccessor.GetShared();
                     if (_horizonService == null) return;
-                    Logger.Debug($"MaximumHorizonCondition: SafeUpdateState resolved shared service. Service.SelectedProfileName='{_horizonService.SelectedProfileName}'");
                 }
                 var target = _targetContainer?.Target;
                 double altitude; double azimuth;
@@ -906,7 +1080,26 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
                     : (!string.IsNullOrWhiteSpace(_horizonService.SelectedProfileName)
                         ? _horizonService.SelectedProfileName
                         : Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile());
-                EffectiveProfileName = effectiveProfile;
+                
+                // Update EffectiveProfileName on UI thread to ensure property change is propagated
+                void updateEffectiveProfile()
+                {
+                    if (!string.Equals(EffectiveProfileName, effectiveProfile, StringComparison.Ordinal))
+                    {
+                        EffectiveProfileName = effectiveProfile;
+                    }
+                }
+                
+                var dispatcherForProfile = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcherForProfile != null && !dispatcherForProfile.CheckAccess())
+                {
+                    dispatcherForProfile.Invoke(updateEffectiveProfile);
+                }
+                else
+                {
+                    updateEffectiveProfile();
+                }
+                
                 var effectiveMargin = _horizonService.GlobalMarginBuffer;
                 var profileName = string.IsNullOrWhiteSpace(effectiveProfile) ? string.Empty : effectiveProfile;
                 if (VerboseLogging) Logger.Debug($"MaximumHorizonCondition: SafeUpdateState using profileName='{profileName}', margin={effectiveMargin:F2}, az={roundedAz}");
@@ -977,13 +1170,22 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
             // Ensure service is available
             if (_horizonService == null)
             {
-                _horizonService = new MaximumHorizonService();
+                _horizonService = MaximumHorizonServiceAccessor.GetShared();
             }
 
             // Resolve effective profile (prefer condition-level override, else global from options)
             var effectiveProfile = !string.IsNullOrWhiteSpace(SelectedProfile)
                 ? SelectedProfile
-                : _horizonService.SelectedProfileName;
+                : (!string.IsNullOrWhiteSpace(_horizonService.SelectedProfileName)
+                    ? _horizonService.SelectedProfileName
+                    : Services.MaximumHorizonServiceAccessor.GetGlobalSelectedProfile());
+            
+            // Update EffectiveProfileName to ensure UI shows correct profile
+            if (!string.Equals(EffectiveProfileName, effectiveProfile, StringComparison.Ordinal))
+            {
+                EffectiveProfileName = effectiveProfile;
+            }
+            
             if (VerboseLogging) Logger.Debug($"MaximumHorizonCondition: Validate() SelectedProfile(local)='{SelectedProfile}', Service.SelectedProfileName='{_horizonService.SelectedProfileName}', effectiveProfile='{effectiveProfile}'");
 
             if (string.IsNullOrWhiteSpace(effectiveProfile))
@@ -994,7 +1196,6 @@ namespace NINA.Plugin.MaximumHorizon.Conditions
             {
                 // Check existence
                 var profiles = _horizonService.GetAvailableProfiles().ToList();
-                Logger.Debug($"MaximumHorizonCondition: Validate() Available profiles: [{string.Join(", ", profiles)}]");
                 if (!profiles.Contains(effectiveProfile))
                 {
                     issues.Add($"Selected profile '{effectiveProfile}' does not exist");

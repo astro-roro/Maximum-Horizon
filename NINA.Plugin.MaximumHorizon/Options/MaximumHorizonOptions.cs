@@ -36,7 +36,6 @@ namespace NINA.Plugin.MaximumHorizon.Options
             set
             {
                 _horizonService.SelectedProfileName = value;
-                NINA.Core.Utility.Logger.Debug($"MaximumHorizonOptions: SelectedProfile set to '{value}' (service now '{_horizonService.SelectedProfileName}')");
                 Services.MaximumHorizonServiceAccessor.SetGlobalSelectedProfile(_horizonService.SelectedProfileName);
                 RaisePropertyChanged();
                 Task.Run(async () => await LoadSelectedProfileAsync());
@@ -89,22 +88,25 @@ namespace NINA.Plugin.MaximumHorizon.Options
             }
         }
 
-        private async Task LoadSelectedProfileAsync()
+        internal async Task LoadSelectedProfileAsync()
         {
             if (string.IsNullOrWhiteSpace(SelectedProfile))
             {
                 CurrentProfile = null;
+                RaisePropertyChanged(nameof(CurrentProfile));
                 return;
             }
 
             try
             {
                 CurrentProfile = await _horizonService.GetProfileAsync(SelectedProfile);
+                RaisePropertyChanged(nameof(CurrentProfile));
             }
             catch (Exception ex)
             {
                 Logger.Error($"Error loading profile {SelectedProfile}: {ex.Message}", ex);
                 CurrentProfile = null;
+                RaisePropertyChanged(nameof(CurrentProfile));
             }
         }
 

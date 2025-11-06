@@ -9,7 +9,6 @@ namespace NINA.Plugin.MaximumHorizon.Resources
         public MaximumHorizonResources()
         {
             Source = new Uri("pack://application:,,,/NINA.Plugin.MaximumHorizon;component/Resources/MaximumHorizonResources.xaml");
-            NINA.Core.Utility.Logger.Debug("MaximumHorizonResources: ResourceDictionary constructed and Source set");
         }
     }
 }
