@@ -10,7 +10,7 @@ namespace NINA.Plugin.MaximumHorizon
     {
         public MaximumHorizonManifest()
         {
-            Identifier = "NINA.Plugin.MaximumHorizon";
+            Identifier = "B7957C29-EE62-45E8-A918-6FEE3C1F566D";
             Name = "Maximum Horizon";
             Version = new PluginVersion("1.0.2.0");
             Author = "Astro With RoRo";
@@ -31,8 +31,8 @@ namespace NINA.Plugin.MaximumHorizon
             Installer = new PluginInstallerDetails
             {
                 URL = "https://github.com/astro-roro/Maximum-Horizon/releases/download/v1.0.2.0/NINA.Plugin.MaximumHorizon.dll",
-                Type = InstallerType.ARCHIVE,
-                Checksum = "0c3dd3d69a0dda73267324bb63857174e38dfa0b20ebd6c2d434b2f5e7482c46",
+                Type = InstallerType.DLL,
+                Checksum = "45be4b425e9f62b502b6409796654361a40846676b805a41cca990ffdd39befa",
                 ChecksumType = InstallerChecksum.SHA256
             };
         }
