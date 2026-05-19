@@ -30,9 +30,9 @@ namespace NINA.Plugin.MaximumHorizon
 
             Installer = new PluginInstallerDetails
             {
-                URL = "https://github.com/astro-roro/Maximum-Horizon",
+                URL = "https://github.com/astro-roro/Maximum-Horizon/releases/download/v1.0.2.0/NINA.Plugin.MaximumHorizon.dll",
                 Type = InstallerType.ARCHIVE,
-                Checksum = "",
+                Checksum = "0c3dd3d69a0dda73267324bb63857174e38dfa0b20ebd6c2d434b2f5e7482c46",
                 ChecksumType = InstallerChecksum.SHA256
             };
         }
