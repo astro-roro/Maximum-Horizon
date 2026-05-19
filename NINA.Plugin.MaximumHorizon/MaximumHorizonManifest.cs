@@ -13,7 +13,7 @@ namespace NINA.Plugin.MaximumHorizon
             Identifier = "NINA.Plugin.MaximumHorizon";
             Name = "Maximum Horizon";
             Version = new PluginVersion("1.0.2.0");
-            Author = "Rohan Hinton";
+            Author = "Astro With RoRo";
             Homepage = "https://github.com/astro-roro/Maximum-Horizon";
             Repository = "https://github.com/astro-roro/Maximum-Horizon";
             License = "MIT";
@@ -41,5 +41,3 @@ namespace NINA.Plugin.MaximumHorizon
         }
     }
 }
-
-

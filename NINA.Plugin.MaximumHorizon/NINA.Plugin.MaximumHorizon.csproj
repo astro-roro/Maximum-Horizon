@@ -10,7 +10,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
     <Version>1.0.0</Version>
-    <Authors>Rohan Hinton</Authors>
+    <Authors>Astro With RoRo</Authors>
     <Description>NINA plugin for defining custom maximum altitude constraints (upper horizon limits) to prevent imaging obstructed targets</Description>
     <Copyright>Copyright © 2025</Copyright>
   </PropertyGroup>
@@ -68,4 +68,3 @@
   -->
 
 </Project>
-
