@@ -25,17 +25,14 @@ namespace NINA.Plugin.MaximumHorizon
             Descriptions = new PluginDescription
             {
                 ShortDescription = "Defines maximum altitude constraints to avoid imaging targets blocked by overhead obstructions.",
-                LongDescription = "Maximum Horizon lets you build horizon profiles manually, import them from CSV, or extract from images so your sequences stop when a target exceeds your custom altitude limit.",
-                FeaturedImageURL = "https://raw.githubusercontent.com/yourusername/NINA.Plugin.MaximumHorizon/main/images/featured.png",
-                ScreenshotURL = "https://raw.githubusercontent.com/yourusername/NINA.Plugin.MaximumHorizon/main/images/screenshot1.png",
-                AltScreenshotURL = "https://raw.githubusercontent.com/yourusername/NINA.Plugin.MaximumHorizon/main/images/screenshot2.png"
+                LongDescription = "Maximum Horizon lets you build horizon profiles manually, import them from CSV, or extract from images so your sequences stop when a target exceeds your custom altitude limit."
             };
 
             Installer = new PluginInstallerDetails
             {
                 URL = "https://github.com/astro-roro/Maximum-Horizon",
                 Type = InstallerType.ARCHIVE,
-                Checksum = "YOUR_CHECKSUM_HERE",
+                Checksum = "",
                 ChecksumType = InstallerChecksum.SHA256
             };
         }

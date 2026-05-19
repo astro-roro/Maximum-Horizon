@@ -147,8 +147,8 @@ double maxAlt = await horizonService.GetMaximumAltitudeAsync(
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/NINA.Plugin.MaximumHorizon.git
-   cd NINA.Plugin.MaximumHorizon
+   git clone https://github.com/astro-roro/Maximum-Horizon.git
+   cd Maximum-Horizon
    ```
 
 2. Open `NINA.Plugin.MaximumHorizon.sln` in Visual Studio 2022 or later
@@ -167,7 +167,7 @@ double maxAlt = await horizonService.GetMaximumAltitudeAsync(
 
 ## Version
 
-Current version: **1.0.1.2**
+Current version: **1.0.2.0**
 
 ## License
 
@@ -176,7 +176,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## Support
 
 For issues, feature requests, or questions:
-- **GitHub Issues**: [Open an issue](https://github.com/yourusername/NINA.Plugin.MaximumHorizon/issues)
+- **GitHub Issues**: [Open an issue](https://github.com/astro-roro/Maximum-Horizon/issues)
 - **NINA Forums**: [NINA Community Forums](https://nighttime-imaging.eu/)
 
 ## Contributing
