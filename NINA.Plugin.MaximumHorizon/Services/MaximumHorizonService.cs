@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -44,6 +45,9 @@ namespace NINA.Plugin.MaximumHorizon.Services
             // Load saved settings
             LoadSettings();
 
+            // Migrate any legacy .maxalt files from older plugin versions into the JSON profile store
+            MigrateLegacyMaxAltFiles();
+
             // Preload cache synchronously to support fast, non-blocking lookups on UI thread
             try
             {
@@ -70,6 +74,70 @@ namespace NINA.Plugin.MaximumHorizon.Services
                 Logger.Warning($"Failed to initialize profile cache: {ex.Message}");
             }
 
+        }
+
+        private void MigrateLegacyMaxAltFiles()
+        {
+            try
+            {
+                var ninaProfilesRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "NINA",
+                    "Profiles");
+
+                if (!Directory.Exists(ninaProfilesRoot)) return;
+
+                foreach (var ninaProfileDir in Directory.GetDirectories(ninaProfilesRoot))
+                {
+                    var horizonDir = Path.Combine(ninaProfileDir, "Horizon", "MaximumHorizon");
+                    if (!Directory.Exists(horizonDir)) continue;
+
+                    foreach (var maxAltFile in Directory.GetFiles(horizonDir, "*.maxalt"))
+                    {
+                        var profileName = Path.GetFileNameWithoutExtension(maxAltFile);
+                        var jsonPath = Path.Combine(_profilesDirectory, profileName + ".json");
+                        if (File.Exists(jsonPath)) continue;
+
+                        var profile = ParseMaxAltFile(maxAltFile, profileName);
+                        if (profile == null || profile.Points.Count == 0) continue;
+
+                        var json = JsonSerializer.Serialize(profile, new JsonSerializerOptions { WriteIndented = true });
+                        File.WriteAllText(jsonPath, json);
+                        Logger.Info($"Migrated legacy horizon profile '{profileName}' from {maxAltFile}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"Legacy .maxalt migration failed: {ex.Message}");
+            }
+        }
+
+        private HorizonProfile? ParseMaxAltFile(string filePath, string profileName)
+        {
+            var profile = new HorizonProfile
+            {
+                Name = profileName,
+                CreatedAt = File.GetCreationTime(filePath),
+                ModifiedAt = File.GetLastWriteTime(filePath)
+            };
+
+            foreach (var rawLine in File.ReadAllLines(filePath))
+            {
+                var line = rawLine.Trim().TrimStart('﻿');
+                if (line.Length == 0 || line.StartsWith("#")) continue;
+
+                var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2) continue;
+
+                if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var az) &&
+                    double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var alt))
+                {
+                    profile.Points.Add(new HorizonPoint(az, alt));
+                }
+            }
+
+            return profile.Points.Count > 0 ? profile : null;
         }
 
         public async Task<IEnumerable<string>> GetAvailableProfilesAsync()

@@ -71,7 +71,7 @@ namespace NINA.Plugin.MaximumHorizon.Options
             ImportImageCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(ImportImage);
             LoadProfileCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<string?>(LoadProfile);
             AddRowCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(AddRow);
-            DeleteRowCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<Models.HorizonPoint>(DeleteRow);
+            DeleteRowCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<object?>(p => DeleteRow(p as Models.HorizonPoint));
 
             _options.PropertyChanged += (sender, e) =>
             {

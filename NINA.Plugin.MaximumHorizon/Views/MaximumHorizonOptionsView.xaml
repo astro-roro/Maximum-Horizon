@@ -30,32 +30,32 @@
                           Margin="0,0,5,0"
                           VerticalContentAlignment="Center"/>
 
-                <Button Grid.Column="1" 
-                        Content="New Profile" 
-                        Command="{Binding CreateNewProfileCommand}"
-                        Margin="5,0,5,0"
-                        Padding="10,5"/>
-
-                <Button Grid.Column="2" 
-                        Content="Duplicate" 
+                <Button Grid.Column="1"
+                        Content="Duplicate"
                         Command="{Binding DuplicateProfileCommand}"
                         CommandParameter="{Binding SelectedProfile}"
                         Margin="5,0,5,0"
                         Padding="10,5"/>
 
-                <Button Grid.Column="3" 
-                        Content="Delete" 
+                <Button Grid.Column="2"
+                        Content="Delete"
                         Command="{Binding DeleteProfileCommand}"
                         CommandParameter="{Binding SelectedProfile}"
                         Margin="5,0,5,0"
                         Padding="10,5"/>
 
-                <TextBox Grid.Column="4" 
-                         Text="{Binding NewProfileName}"
-                         Margin="5,0,0,0"
+                <TextBox Grid.Column="3"
+                         Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="5,0,5,0"
                          Padding="5"
                          MinWidth="150"
                          VerticalContentAlignment="Center"/>
+
+                <Button Grid.Column="4"
+                        Content="New Profile"
+                        Command="{Binding CreateNewProfileCommand}"
+                        Margin="5,0,0,0"
+                        Padding="10,5"/>
             </Grid>
         </GroupBox>
 
