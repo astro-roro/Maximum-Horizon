@@ -1,0 +1,13 @@
+# Maximum Horizon plugin test profile - extended .hrz format
+# Proposed extension per https://github.com/tcpalmer/nina.plugin.targetscheduler/pull/6
+# Format: azimuth minAltitude maxAltitude
+# minAltitude column held at 0 in this sample - this profile only defines upper limits
+# Source data: %localappdata%\NINA\Plugins\MaximumHorizon\Profiles\test.json
+0 0 90
+10 0 55
+40 0 75
+85 0 60
+130 0 70
+180 0 0
+330 0 0
+340 0 50
